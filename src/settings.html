@@ -52,6 +52,25 @@
     <div class="li"><label><span class="input checkbox"><input type="checkbox" data-setting-name="tooltipsDisabled" data-setting-type="bool"><svg viewBox="0 0 24 24"><path d="M1.73,12.91 8.1,19.28 22.79,4.59"/></svg></span><span data-i18n="settingsTooltipsPrompt">_</span></label></div>
 </div>
 <hr>
+<div class="fieldset" id="masterPasswordFieldset">
+    <div class="fieldset-header">Master password</div>
+    <div class="li" id="masterPasswordStatus" aria-live="polite"></div>
+    <div class="li master-password-row">
+        <label class="master-password-label" for="masterPasswordInput">Password</label>
+        <input id="masterPasswordInput" type="password" autocomplete="new-password" placeholder="Enter password">
+    </div>
+    <div class="li master-password-row" id="masterPasswordConfirmRow">
+        <label class="master-password-label" for="masterPasswordConfirm">Confirm</label>
+        <input id="masterPasswordConfirm" type="password" autocomplete="new-password" placeholder="Confirm password">
+    </div>
+    <div class="li master-password-actions">
+        <button type="button" id="masterPasswordSet">Enable</button>
+    </div>
+    <div class="li master-password-actions">
+        <button type="button" id="masterPasswordDisable">Disable</button>
+    </div>
+</div>
+<hr>
 <div class="fieldset">
     <div class="fieldset-header" data-i18n="settingPerSiteSwitchGroup"></div>
     <div class="li synopsis"><legend><span data-i18n="settingPerSiteSwitchGroupSynopsis"></span>&nbsp;<a class="fa-icon info" href="https://github.com/gorhill/uBlock/wiki/Per-site-switches" target="_blank">info-circle</a></legend></div>
@@ -93,6 +112,7 @@
 <script src="js/theme.js" type="module"></script>
 <script src="js/i18n.js" type="module"></script>
 <script src="js/dashboard-common.js" type="module"></script>
+<script src="js/master-password.js" type="module"></script>
 <script src="js/settings.js" type="module"></script>
 
 </body>

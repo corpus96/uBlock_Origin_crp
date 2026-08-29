@@ -207,6 +207,28 @@ const proceedToURL = function() {
     window.location.replace(details.url);
 };
 
+let masterPasswordConfigured = false;
+let masterPasswordValidated = false;
+
+const updateProceedButtonState = async function() {
+    const proceedButton = qs$('#proceed');
+    if ( masterPasswordConfigured !== true ) {
+        proceedButton.disabled = false;
+        return;
+    }
+    const password = qs$('#masterPasswordInput').value;
+    if ( password.length === 0 ) {
+        proceedButton.disabled = true;
+        return;
+    }
+    const response = await messaging.send('documentBlocked', {
+        what: 'authorizeProceed',
+        password,
+    });
+    masterPasswordValidated = response && response.ok === true;
+    proceedButton.disabled = masterPasswordValidated !== true;
+};
+
 const proceedTemporary = async function() {
     await messaging.send('documentBlocked', {
         what: 'temporarilyWhitelistDocument',
@@ -233,11 +255,48 @@ dom.on('#disableWarning', 'change', ev => {
     dom.cl.toggle('[data-i18n="docblockedClose"]', 'disabled', checked);
 });
 
-dom.on('#proceed', 'click', ( ) => {
+const requireMasterPassword = async function() {
+    if ( masterPasswordConfigured !== true ) { return true; }
+    const password = qs$('#masterPasswordInput').value;
+    const response = await messaging.send('documentBlocked', {
+        what: 'authorizeProceed',
+        password,
+    });
+    if ( response && response.ok === true ) {
+        masterPasswordValidated = true;
+        return true;
+    }
+    masterPasswordValidated = false;
+    qs$('#masterPasswordInput').focus();
+    return false;
+};
+
+dom.on('#proceed', 'click', async ( ) => {
+    if ( await requireMasterPassword() !== true ) {
+        return;
+    }
     if ( qs$('#disableWarning').checked ) {
         proceedPermanent();
     } else {
         proceedTemporary();
+    }
+});
+
+dom.on('#masterPasswordInput', 'input', async ( ) => {
+    if ( masterPasswordConfigured !== true ) { return; }
+    await updateProceedButtonState();
+});
+
+messaging.send('documentBlocked', {
+    what: 'isMasterPasswordConfigured',
+}).then(result => {
+    masterPasswordConfigured = result && result.configured === true;
+    const prompt = qs$('#masterPasswordPrompt');
+    if ( masterPasswordConfigured ) {
+        prompt.hidden = false;
+        qs$('#proceed').disabled = true;
+        qs$('#masterPasswordInput').focus();
+        updateProceedButtonState();
     }
 });
 

@@ -44,6 +44,10 @@ import { denseBase64 } from './base64-custom.js';
 import { filteringBehaviorChanged } from './broadcast.js';
 import htmlFilteringEngine from './html-filtering.js';
 import { i18n$ } from './i18n.js';
+import {
+    createMasterPasswordRecord,
+    verifyMasterPassword,
+} from './master-password.js';
 import io from './assets.js';
 import logger from './logger.js';
 import lz4Codec from './lz4.js';
@@ -1017,6 +1021,51 @@ const getLocalData = async function() {
     return data;
 };
 
+const masterPasswordStorageKey = 'masterPassword';
+
+const getMasterPasswordRecord = async function() {
+    const results = await vAPI.storage.get(masterPasswordStorageKey);
+    return results && results[masterPasswordStorageKey] || null;
+};
+
+const getMasterPasswordStatus = async function() {
+    const record = await getMasterPasswordRecord();
+    return { configured: record instanceof Object && record.version === 1 };
+};
+
+const setMasterPassword = async function(request) {
+    const password = typeof request.password === 'string' ? request.password.trim() : '';
+    if ( password === '' ) {
+        return { ok: false, error: 'Password cannot be empty.' };
+    }
+    const record = await getMasterPasswordRecord();
+    if ( record instanceof Object ) {
+        return { ok: false, error: 'A master password is already configured.' };
+    }
+    const nextRecord = await createMasterPasswordRecord(password);
+    if ( nextRecord === null ) {
+        return { ok: false, error: 'Unable to configure master password.' };
+    }
+    await vAPI.storage.set({ [masterPasswordStorageKey]: nextRecord });
+    return { ok: true };
+};
+
+const disableMasterPassword = async function(request) {
+    const current = typeof request.password === 'string' ? request.password : '';
+    const record = await getMasterPasswordRecord();
+    if ( record instanceof Object === false ) {
+        return { ok: true };
+    }
+    if ( current === '' ) {
+        return { ok: false, error: 'Current password is required.' };
+    }
+    if ( await verifyMasterPassword(current, record) !== true ) {
+        return { ok: false, error: 'Current password is incorrect.' };
+    }
+    await vAPI.storage.remove(masterPasswordStorageKey);
+    return { ok: true };
+};
+
 const backupUserData = async function() {
     const userFilters = await µb.loadUserFilters();
 
@@ -1426,6 +1475,11 @@ const onMessage = function(request, sender, callback) {
             callback(data);
         });
 
+    case 'disableMasterPassword':
+        return disableMasterPassword(request).then(data => {
+            callback(data);
+        });
+
     case 'getLists':
         return µb.isReadyPromise.then(( ) => {
             getLists(callback);
@@ -1434,6 +1488,11 @@ const onMessage = function(request, sender, callback) {
     case 'getLocalData':
         return getLocalData().then(localData => {
             callback(localData);
+        });
+
+    case 'getMasterPasswordStatus':
+        return getMasterPasswordStatus().then(data => {
+            callback(data);
         });
 
     case 'getSupportData': {
@@ -1539,6 +1598,11 @@ const onMessage = function(request, sender, callback) {
     case 'resetUserData':
         resetUserData();
         break;
+
+    case 'setMasterPassword':
+        return setMasterPassword(request).then(data => {
+            callback(data);
+        });
 
     case 'updateNow':
         µb.scheduleAssetUpdater({ now: true, fetchDelay: 100, auto: true });
@@ -1789,7 +1853,7 @@ vAPI.messaging.listen({
 {
 // >>>>> start of local scope
 
-const onMessage = function(request, sender, callback) {
+const onMessage = async function(request, sender, callback) {
     const tabId = sender.tabId || 0;
 
     // Async
@@ -1802,8 +1866,23 @@ const onMessage = function(request, sender, callback) {
     let response;
 
     switch ( request.what ) {
+    case 'authorizeProceed': {
+        const password = typeof request.password === 'string' ? request.password : '';
+        const record = await getMasterPasswordRecord();
+        if ( record instanceof Object && await verifyMasterPassword(password, record) !== true ) {
+            response = { ok: false, error: 'Incorrect password.' };
+            break;
+        }
+        response = { ok: true };
+        break;
+    }
+
     case 'closeThisTab':
         vAPI.tabs.remove(tabId);
+        break;
+
+    case 'isMasterPasswordConfigured':
+        response = { configured: (await getMasterPasswordRecord()) instanceof Object };
         break;
 
     case 'temporarilyWhitelistDocument':

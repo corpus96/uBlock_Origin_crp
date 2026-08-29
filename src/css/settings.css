@@ -61,6 +61,21 @@ body.advancedUser [href="advanced-settings.html"] {
     min-width: 280px;
     }
 
+#masterPasswordFieldset .master-password-row {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    }
+#masterPasswordFieldset .master-password-label {
+    min-width: 5.5rem;
+    }
+#masterPasswordFieldset .master-password-actions {
+    display: inline-flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    }
+
 /* Mobile devices */
 
 :root.mobile #localData {

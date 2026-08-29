@@ -30,6 +30,7 @@ async function spawnMocha() {
     const files = [
         'tests/wasm.js',
         'tests/snfe.js',
+        'tests/master-password.js',
     ];
 
     const options = [];

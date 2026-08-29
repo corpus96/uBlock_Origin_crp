@@ -210,6 +210,75 @@ function synchronizeDOM() {
 
 /******************************************************************************/
 
+function updateMasterPasswordState(configured) {
+    const status = qs$('#masterPasswordStatus');
+    const input = qs$('#masterPasswordInput');
+    const confirm = qs$('#masterPasswordConfirm');
+    const confirmRow = qs$('#masterPasswordConfirmRow');
+    const setButton = qs$('#masterPasswordSet');
+    const disableButton = qs$('#masterPasswordDisable');
+
+    input.value = '';
+    confirm.value = '';
+    status.textContent = configured
+        ? 'Master password is enabled.'
+        : 'Master password is not enabled.';
+
+    setButton.disabled = configured;
+    disableButton.disabled = !configured;
+    setButton.hidden = false;
+    disableButton.hidden = false;
+    input.placeholder = configured ? 'Current password' : 'Enter password';
+    input.autocomplete = configured ? 'current-password' : 'new-password';
+    confirm.placeholder = configured ? 'Current password to disable' : 'Confirm password';
+    confirm.autocomplete = 'new-password';
+    confirmRow.style.display = configured ? 'none' : 'block';
+    if ( configured ) {
+        confirm.removeAttribute('aria-label');
+    }
+}
+
+async function onMasterPasswordSet() {
+    const password = qs$('#masterPasswordInput').value;
+    const confirm = qs$('#masterPasswordConfirm').value;
+    if ( password.length === 0 ) {
+        window.alert('Please enter a password.');
+        return;
+    }
+    if ( password !== confirm ) {
+        window.alert('Passwords do not match.');
+        return;
+    }
+
+    const result = await vAPI.messaging.send('dashboard', {
+        what: 'setMasterPassword',
+        password,
+    });
+    if ( result && result.ok ) {
+        updateMasterPasswordState(true);
+        return;
+    }
+    window.alert(result && result.error ? result.error : 'Unable to set master password.');
+}
+
+async function onMasterPasswordDisable() {
+    const current = qs$('#masterPasswordInput').value;
+    if ( current.length === 0 ) {
+        window.alert('Please enter the current password to disable master password.');
+        return;
+    }
+
+    const result = await vAPI.messaging.send('dashboard', {
+        what: 'disableMasterPassword',
+        password: current,
+    });
+    if ( result && result.ok ) {
+        updateMasterPasswordState(false);
+        return;
+    }
+    window.alert(result && result.error ? result.error : 'Unable to disable master password.');
+}
+
 function changeUserSettings(name, value) {
     vAPI.messaging.send('dashboard', {
         what: 'userSettings',
@@ -294,6 +363,12 @@ function onUserSettingsReceived(details) {
     dom.on('#import', 'click', startImportFilePicker);
     dom.on('#reset', 'click', resetUserData);
     dom.on('#restoreFilePicker', 'change', handleImportFilePicker);
+    dom.on('#masterPasswordSet', 'click', onMasterPasswordSet);
+    dom.on('#masterPasswordDisable', 'click', onMasterPasswordDisable);
+
+    vAPI.messaging.send('dashboard', { what: 'getMasterPasswordStatus' }).then(result => {
+        updateMasterPasswordState(Boolean(result && result.configured));
+    });
 
     synchronizeDOM();
 }
