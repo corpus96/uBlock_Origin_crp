@@ -61,6 +61,39 @@ body.advancedUser [href="advanced-settings.html"] {
     min-width: 280px;
     }
 
+#masterPasswordFieldset .master-password-row {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    }
+#masterPasswordFieldset .master-password-row input {
+    flex: 0 0 auto;
+    width: 16rem;
+    }
+#masterPasswordFieldset .master-password-label {
+    flex: 0 0 auto;
+    width: 5.5rem;
+    }
+#masterPasswordFieldset .master-password-actions {
+    display: inline-flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    }
+#masterPasswordMessage {
+    font-weight: 700;
+    margin-top: 0.5rem;
+    }
+#masterPasswordMessage:empty {
+    display: none;
+    }
+#masterPasswordMessage.error {
+    color: var(--error-surface);
+    }
+#masterPasswordMessage.success {
+    color: var(--dashboard-happy-green);
+    }
+
 /* Mobile devices */
 
 :root.mobile #localData {

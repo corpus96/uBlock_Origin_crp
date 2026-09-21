@@ -40,11 +40,13 @@ import {
 
 import cacheStorage from './cachestorage.js';
 import cosmeticFilteringEngine from './cosmetic-filtering.js';
+import createMasterPasswordRecord from './master-password.js';
 import { denseBase64 } from './base64-custom.js';
 import { filteringBehaviorChanged } from './broadcast.js';
 import { getTrustedTokens } from './trusted-tokens.js';
 import htmlFilteringEngine from './html-filtering.js';
 import { i18n$ } from './i18n.js';
+
 import io from './assets.js';
 import logger from './logger.js';
 import lz4Codec from './lz4.js';
@@ -54,6 +56,8 @@ import { redirectEngine } from './redirect-engine.js';
 import scriptletFilteringEngine from './scriptlet-filtering.js';
 import { staticFilteringReverseLookup } from './reverselookup.js';
 import staticNetFilteringEngine from './static-net-filtering.js';
+
+import verifyMasterPassword from './master-password.js';
 import webRequest from './traffic.js';
 import µb from './background.js';
 
@@ -64,6 +68,15 @@ import µb from './background.js';
 //   The nameless default handler is always deemed "privileged".
 //   Messages from privileged ports must never relayed to listeners
 //   which are not privileged.
+
+/******************************************************************************/
+
+const masterPasswordStorageKey = 'masterPassword';
+
+const getMasterPasswordRecord = async function() {
+    const results = await vAPI.storage.get(masterPasswordStorageKey);
+    return results && results[masterPasswordStorageKey] || null;
+};
 
 /******************************************************************************/
 /******************************************************************************/
@@ -1018,6 +1031,44 @@ const getLocalData = async function() {
     return data;
 };
 
+const getMasterPasswordStatus = async function() {
+    const record = await getMasterPasswordRecord();
+    return { configured: record instanceof Object && record.version === 1 };
+};
+
+const setMasterPassword = async function(request) {
+    const password = typeof request.password === 'string' ? request.password.trim() : '';
+    if ( password === '' ) {
+        return { ok: false, error: 'Password cannot be empty.' };
+    }
+    const record = await getMasterPasswordRecord();
+    if ( record instanceof Object ) {
+        return { ok: false, error: 'A master password is already configured.' };
+    }
+    const nextRecord = await createMasterPasswordRecord(password);
+    if ( nextRecord === null ) {
+        return { ok: false, error: 'Unable to configure master password.' };
+    }
+    await vAPI.storage.set({ [masterPasswordStorageKey]: nextRecord });
+    return { ok: true };
+};
+
+const disableMasterPassword = async function(request) {
+    const current = typeof request.password === 'string' ? request.password : '';
+    const record = await getMasterPasswordRecord();
+    if ( record instanceof Object === false ) {
+        return { ok: true };
+    }
+    if ( current === '' ) {
+        return { ok: false, error: 'Current password is required.' };
+    }
+    if ( await verifyMasterPassword(current, record) !== true ) {
+        return { ok: false, error: 'Current password is incorrect.' };
+    }
+    await vAPI.storage.remove(masterPasswordStorageKey);
+    return { ok: true };
+};
+
 const backupUserData = async function() {
     const userFilters = await µb.loadUserFilters();
 
@@ -1427,6 +1478,11 @@ const onMessage = function(request, sender, callback) {
             callback(data);
         });
 
+    case 'disableMasterPassword':
+        return disableMasterPassword(request).then(data => {
+            callback(data);
+        });
+
     case 'getLists':
         return µb.isReadyPromise.then(( ) => {
             getLists(callback);
@@ -1435,6 +1491,11 @@ const onMessage = function(request, sender, callback) {
     case 'getLocalData':
         return getLocalData().then(localData => {
             callback(localData);
+        });
+
+    case 'getMasterPasswordStatus':
+        return getMasterPasswordStatus().then(data => {
+            callback(data);
         });
 
     case 'getSupportData': {
@@ -1540,6 +1601,11 @@ const onMessage = function(request, sender, callback) {
     case 'resetUserData':
         resetUserData();
         break;
+
+    case 'setMasterPassword':
+        return setMasterPassword(request).then(data => {
+            callback(data);
+        });
 
     case 'updateNow':
         µb.scheduleAssetUpdater({ now: true, fetchDelay: 100, auto: true });
@@ -1795,6 +1861,23 @@ const onMessage = function(request, sender, callback) {
 
     // Async
     switch ( request.what ) {
+    case 'authorizeProceed': {
+        const password = typeof request.password === 'string' ? request.password : '';
+        return getMasterPasswordRecord().then(record => {
+            if ( record instanceof Object ) {
+                return verifyMasterPassword(password, record);
+            }
+            return true;
+        }).then(ok => {
+            callback(ok ? { ok: true } : { ok: false, error: 'Incorrect password.' });
+        });
+    }
+
+    case 'isMasterPasswordConfigured':
+        return getMasterPasswordRecord().then(record => {
+            callback({ configured: record instanceof Object });
+        });
+
     default:
         break;
     }
